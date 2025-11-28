@@ -1,0 +1,30 @@
+# Python virtual environments
+venv/
+.venv/
+env/
+.env/
+.env
+.env.local
+
+# Byte-code files
+*.pyc
+__pycache__/
+
+# IDE-specific files (VS Code)
+.vscode/
+
+# Database files
+*.db
+
+# Logs
+*.log
+*.log.*
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Python build artifacts
+dist/
+build/
+*.egg-info/
