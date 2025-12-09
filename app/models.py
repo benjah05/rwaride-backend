@@ -58,9 +58,6 @@ class Vehicle(db.Model):
     seat_capacity = db.Column(db.Integer, default=4, nullable=False)
     
     is_verified = db.Column(db.Boolean, default=False)
-    
-    # Verification status for insurance/registration check
-    is_verified = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
         return f'<Vehicle {self.make} {self.model} ({self.license_plate})>'
