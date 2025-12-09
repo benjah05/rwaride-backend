@@ -9,26 +9,23 @@ def is_driver(user):
     """Checks if the user has a 'driver' or 'both' role."""
     return user.role in ['driver', 'both']
 
-
 # Register a new vehicle
 @vehicle_bp.route('/', methods=['POST'])
 @jwt_required()
 def register_vehicle():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = User.query.get(int(user_id)) # Cast to INT for primary lookup
 
     if not user or not is_driver(user):
         return jsonify({"msg": "Unauthorized: Only drivers can register vehicles"}), 403
 
     data = request.get_json()
-    
     license_plate = data.get('license_plate')
     seat_capacity = data.get('seat_capacity')
     
     if not license_plate or not seat_capacity:
         return jsonify({"msg": "Missing required fields: license_plate and seat_capacity"}), 400
 
-    # Ensure license plate is unique across the platform
     if Vehicle.query.filter_by(license_plate=license_plate).first():
         return jsonify({"msg": "Vehicle with this license plate already exists"}), 409
 
@@ -60,12 +57,12 @@ def register_vehicle():
 @jwt_required()
 def get_user_vehicles():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = User.query.get(int(user_id))
     
     if not user or not is_driver(user):
         return jsonify({"msg": "Unauthorized: Access restricted to drivers"}), 403
 
-    vehicles = user.vehicles.all()
+    vehicles = user.vehicles.all() 
     
     vehicle_list = []
     for vehicle in vehicles:
@@ -87,14 +84,12 @@ def get_user_vehicles():
 @jwt_required()
 def update_vehicle(vehicle_id):
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
     
     vehicle = Vehicle.query.get(vehicle_id)
 
     if not vehicle:
         return jsonify({"msg": "Vehicle not found"}), 404
-        
-    # Security Check: Ensure the user owns the vehicle
+    
     if vehicle.owner_id != int(user_id):
         return jsonify({"msg": "Forbidden: You do not own this vehicle"}), 403
 
@@ -130,8 +125,7 @@ def delete_vehicle(vehicle_id):
     
     if not vehicle:
         return jsonify({"msg": "Vehicle not found"}), 404
-        
-    # Security Check: Ensure the user owns the vehicle
+    
     if vehicle.owner_id != int(user_id):
         return jsonify({"msg": "Forbidden: You do not own this vehicle"}), 403
 
