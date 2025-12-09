@@ -16,6 +16,7 @@ elif raw_db_url:
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
     
     SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI
