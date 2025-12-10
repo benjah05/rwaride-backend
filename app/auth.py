@@ -2,7 +2,6 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import User
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
-from sqlalchemy import text 
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -143,33 +142,6 @@ def update_user_profile():
     except Exception as e:
         db.session.rollback()
         return jsonify({"msg": "Update failed", "error": str(e)}), 500
-
-#----------------------------------------------------   
-@auth_bp.route('/admin/db-reset', methods=['POST'])
-@jwt_required()
-def reset_db_history():
-    # SECURITY CHECK: Only allow this if authenticated (though it should be deleted ASAP)
-    user_id = get_jwt_identity()
-    user = User.query.get(int(user_id))
-
-    if not user:
-        return jsonify({"msg": "Unauthorized"}), 401
-    
-    try:
-        # Execute raw SQL to drop the corrupt history table
-        with db.engine.connect() as connection:
-            connection.execute(text("DROP TABLE IF EXISTS alembic_version;"))
-            connection.commit()
-            
-        return jsonify({
-            "msg": "Database history table (alembic_version) successfully deleted.",
-            "WARNING": "DELETE THIS ENDPOINT IMMEDIATELY AFTER USE."
-        }), 200
-
-    except Exception as e:
-        # Catch if the table doesn't exist or another connection error occurs
-        return jsonify({"msg": "Failed to drop table (check logs)", "error": str(e)}), 500
-#--------------------------------------------------------
 
 @auth_bp.route('/profile', methods=['DELETE'])
 @jwt_required()
