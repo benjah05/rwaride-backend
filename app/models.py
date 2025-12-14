@@ -61,3 +61,62 @@ class Vehicle(db.Model):
 
     def __repr__(self):
         return f'<Vehicle {self.make} {self.model} ({self.license_plate})>'
+    
+class Ride(db.Model):
+    """Represents a single ride/trip posted by a driver."""
+    __tablename__ = 'ride'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Foreign Keys
+    driver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicle.id'), nullable=True) 
+
+    # Trip Details
+    origin = db.Column(db.String(200), nullable=False)
+    destination = db.Column(db.String(200), nullable=False)
+    departure_time = db.Column(db.DateTime, nullable=False)
+    
+    # Capacity and Status
+    total_seats = db.Column(db.Integer, nullable=False)
+    available_seats = db.Column(db.Integer, nullable=False)
+    
+    # Status: 'open', 'full', 'completed', 'canceled'
+    status = db.Column(db.String(20), default='open', nullable=False) 
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to bookings via the join table (PassengerRide)
+    bookings = db.relationship('PassengerRide', backref='ride', lazy='dynamic')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'driver_id': self.driver_id,
+            'vehicle_id': self.vehicle_id,
+            'origin': self.origin,
+            'destination': self.destination,
+            'departure_time': self.departure_time.isoformat(),
+            'available_seats': self.available_seats,
+            'status': self.status
+        }
+        
+class PassengerRide(db.Model):
+    """The join table for users (passengers) and rides (bookings)."""
+    __tablename__ = 'passenger_ride'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Foreign Keys
+    passenger_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    ride_id = db.Column(db.Integer, db.ForeignKey('ride.id'), nullable=False)
+    
+    # Booking Details
+    seats_booked = db.Column(db.Integer, default=1, nullable=False)
+    # Status: 'booked', 'confirmed', 'canceled', 'completed'
+    status = db.Column(db.String(20), default='booked', nullable=False)
+    booked_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Ensure a passenger can only book one entry per ride
+    __table_args__ = (
+        db.UniqueConstraint('passenger_id', 'ride_id', name='uq_passenger_ride_booking'),
+    )

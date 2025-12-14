@@ -30,4 +30,8 @@ def create_app():
     from app.vehicle import vehicle_bp
     app.register_blueprint(vehicle_bp, url_prefix='/api/vehicles')
 
+    # Rides and Bookings Route
+    from app.ride import ride_bp
+    app.register_blueprint(ride_bp, url_prefix='/api/rides')
+
     return app
