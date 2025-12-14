@@ -1,5 +1,5 @@
 from app import db
-from datetime import datetime
+from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
 
 class User(db.Model):
@@ -11,7 +11,7 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     phone_number = db.Column(db.String(15), unique=True, nullable=False)
     password_hash = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     # Role: 'passenger', 'driver', or 'both'
     role = db.Column(db.String(20), default='passenger', nullable=False)
     # Identity Verification Status (for safety/trust)
@@ -75,7 +75,7 @@ class Ride(db.Model):
     # Trip Details
     origin = db.Column(db.String(200), nullable=False)
     destination = db.Column(db.String(200), nullable=False)
-    departure_time = db.Column(db.DateTime, nullable=False)
+    departure_time = db.Column(db.DateTime(timezone=True), nullable=False)
     
     # Capacity and Status
     total_seats = db.Column(db.Integer, nullable=False)
@@ -83,7 +83,7 @@ class Ride(db.Model):
     
     # Status: 'open', 'full', 'completed', 'canceled'
     status = db.Column(db.String(20), default='open', nullable=False) 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationship to bookings via the join table (PassengerRide)
     bookings = db.relationship('PassengerRide', backref='ride', lazy='dynamic')
@@ -114,7 +114,7 @@ class PassengerRide(db.Model):
     seats_booked = db.Column(db.Integer, default=1, nullable=False)
     # Status: 'booked', 'confirmed', 'canceled', 'completed'
     status = db.Column(db.String(20), default='booked', nullable=False)
-    booked_at = db.Column(db.DateTime, default=datetime.utcnow)
+    booked_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Ensure a passenger can only book one entry per ride
     __table_args__ = (

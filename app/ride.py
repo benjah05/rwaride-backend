@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import User, Ride, Vehicle, PassengerRide
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import or_
 
 ride_bp = Blueprint('ride', __name__)
@@ -54,7 +54,7 @@ def create_ride():
     if total_seats > vehicle.seat_capacity:
         return jsonify({"msg": f"Requested seats ({total_seats}) exceed vehicle capacity ({vehicle.seat_capacity})."}), 400
 
-    if departure_time < datetime.utcnow():
+    if departure_time < datetime.now(timezone.utc):
         return jsonify({"msg": "Cannot schedule a ride in the past."}), 400
 
     try:
@@ -91,6 +91,42 @@ def get_driver_rides():
     
     return jsonify([ride.to_dict() for ride in rides]), 200
 
+#  Driver confirms a pending booking
+@ride_bp.route('/booking/<int:booking_id>/approve', methods=['PUT'])
+@jwt_required()
+def approve_booking(booking_id):
+    driver_id = get_jwt_identity()
+    
+    booking = PassengerRide.query.get(booking_id)
+
+    if not booking:
+        return jsonify({"msg": "Booking not found."}), 404
+        
+    ride = Ride.query.get(booking.ride_id)
+
+    # Authorization Check: Must be the driver of the ride
+    if ride.driver_id != int(driver_id):
+        return jsonify({"msg": "Forbidden: You are not the driver of this ride."}), 403
+
+    # Status Check: Only pending bookings can be approved
+    if booking.status != 'pending':
+        return jsonify({"msg": f"Booking status is already '{booking.status}'. Only 'pending' can be approved."}), 400
+
+    try:
+        # Update the booking status
+        booking.status = 'confirmed'
+        db.session.commit()
+        
+        # Trigger a notification to the passenger
+        return jsonify({
+            "msg": "Booking confirmed successfully.",
+            "booking_id": booking.id,
+            "new_status": booking.status
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Database error during booking approval.", "error": str(e)}), 500
 
 # Passenger Routes
 
@@ -112,7 +148,7 @@ def search_rides():
         query = query.filter(Ride.destination.ilike(f'%{destination_query}%'))
 
     # Filter out rides happening in the past (only show future rides)
-    query = query.filter(Ride.departure_time > datetime.utcnow())
+    query = query.filter(Ride.departure_time > datetime.now(timezone.utc))
 
     # Get results, ordered by departure time
     rides = query.order_by(Ride.departure_time.asc()).all()
