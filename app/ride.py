@@ -33,7 +33,16 @@ def create_ride():
     try:
         vehicle_id = int(data.get('vehicle_id'))
         total_seats = int(data.get('total_seats'))
-        departure_time = datetime.fromisoformat(data.get('departure_time'))
+        departure_time_str = data.get('departure_time')
+
+        # Timezone Parsing
+        if '+' in departure_time_str:
+            departure_time_str = departure_time_str.split('+')[0]
+        elif 'Z' in departure_time_str: # Also strip Z if it indicates UTC
+            departure_time_str = departure_time_str.replace('Z', '')
+            
+        departure_time = datetime.fromisoformat(departure_time_str)
+
     except (ValueError, TypeError):
          return jsonify({"msg": "Invalid data type for vehicle_id, total_seats, or departure_time."}), 400
 
