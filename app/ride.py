@@ -156,28 +156,36 @@ def delete_ride(ride_id):
     if ride.driver_id != int(driver_id):
         return jsonify({"msg": "Forbidden: You are not the driver of this ride."}), 403
     
-    # Check if there are active bookings
     active_bookings = PassengerRide.query.filter_by(
-        ride_id=ride.id, 
-        status='confirmed' # Only confirmed/pending bookings prevent deletion
-    ).first()
+        ride_id=ride.id
+    ).filter(
+        PassengerRide.status.in_(['pending', 'confirmed'])
+    ).all() # Fetch all active bookings
 
     if active_bookings:
-        # If bookings exist, only cancel the trip, don't delete the record
+        # If active bookings exist, only cancel the trip, don't delete the record
         ride.status = 'cancelled'
-        # this should trigger notifications and refunds
+        for booking in active_bookings:
+            booking.status = 'canceled'
+        
         db.session.commit()
-        return jsonify({"msg": "Ride status changed to 'cancelled'. Passengers notified."}), 200
+        return jsonify({"msg": f"Ride status changed to 'cancelled'. {len(active_bookings)} active booking(s) canceled."}), 200
     
     try:
-        # If no bookings, safe to delete entirely
+        # Delete all associated PassengerRide records (even if cancelled)
+        # This handles the integrity constraint.
+        PassengerRide.query.filter_by(ride_id=ride.id).delete()
+        
+        # Delete the parent Ride record
         db.session.delete(ride)
         db.session.commit()
-        return jsonify({"msg": "Ride deleted successfully."}), 200
+        return jsonify({"msg": "Ride and all associated bookings deleted successfully."}), 200
+    
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Database error during ride deletion.", "error": str(e)}), 500
-
+        print(f"Ride deletion failed for ride {ride_id}: {str(e)}")
+        return jsonify({"msg": "Database error during ride deletion. Check server logs."}), 500
+    
 # Get all rides posted by the current driver
 @ride_bp.route('/driver', methods=['GET'])
 @jwt_required()
