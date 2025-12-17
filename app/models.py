@@ -120,3 +120,74 @@ class PassengerRide(db.Model):
     __table_args__ = (
         db.UniqueConstraint('passenger_id', 'ride_id', name='uq_passenger_ride_booking'),
     )
+
+# --- Driver Tracking Model ---
+
+class DriverLocation(db.Model):
+    """Stores the latest real-time coordinates of a driver."""
+    id = db.Column(db.Integer, primary_key=True)
+    driver_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    driver = db.relationship('User', backref=db.backref('current_location', uselist=False))
+
+    def to_dict(self):
+        return {
+            'driver_id': self.driver_id,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'updated_at': self.updated_at.isoformat()
+        }
+
+# --- Messaging Module ---
+
+class ChatMessage(db.Model):
+    """Stores chat messages associated with a specific ride."""
+    id = db.Column(db.Integer, primary_key=True)
+    ride_id = db.Column(db.Integer, db.ForeignKey('ride.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    sender = db.relationship('User', backref=db.backref('sent_messages', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'ride_id': self.ride_id,
+            'sender_id': self.sender_id,
+            'sender_name': self.sender.full_name,
+            'content': self.content,
+            'timestamp': self.timestamp.isoformat()
+        }
+
+# --- Review & Rating Module ---
+
+class Review(db.Model):
+    """Allows passengers to rate drivers and vice-versa."""
+    id = db.Column(db.Integer, primary_key=True)
+    ride_id = db.Column(db.Integer, db.ForeignKey('ride.id'), nullable=False)
+    reviewer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    reviewee_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    rating = db.Column(db.Integer, nullable=False) 
+    comment = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    reviewer = db.relationship('User', foreign_keys=[reviewer_id], backref='reviews_given')
+    reviewee = db.relationship('User', foreign_keys=[reviewee_id], backref='reviews_received')
+    ride = db.relationship('Ride', backref='reviews')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'ride_id': self.ride_id,
+            'reviewer_id': self.reviewer_id,
+            'reviewee_id': self.reviewee_id,
+            'rating': self.rating,
+            'comment': self.comment,
+            'created_at': self.created_at.isoformat()
+        }
