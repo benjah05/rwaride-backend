@@ -7,6 +7,7 @@ Create Date: 2025-12-18
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.engine.reflection import Inspector
 
 # revision identifiers, used by Alembic.
 revision = '1e0471e56de4'
@@ -15,11 +16,15 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    # 1. Create Tables if they don't exist (Recovery Mode)
-    # This ensures your local DB gets rebuilt if empty, 
-    # but won't crash your Railway DB which already has these tables.
+    # Get the current database connection and inspect it
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    existing_tables = inspector.get_table_names()
+
+    # 1. Create Tables ONLY if they don't exist
+    # This prevents 'poisoning' the Postgres transaction
     
-    try:
+    if 'user' not in existing_tables:
         op.create_table('user',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('full_name', sa.String(length=100), nullable=False),
@@ -31,10 +36,8 @@ def upgrade():
             sa.UniqueConstraint('email'),
             sa.UniqueConstraint('phone_number')
         )
-    except Exception:
-        pass
 
-    try:
+    if 'vehicle' not in existing_tables:
         op.create_table('vehicle',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('owner_id', sa.Integer(), nullable=True),
@@ -43,10 +46,8 @@ def upgrade():
             sa.PrimaryKeyConstraint('id'),
             sa.UniqueConstraint('license_plate')
         )
-    except Exception:
-        pass
 
-    try:
+    if 'ride' not in existing_tables:
         op.create_table('ride',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('driver_id', sa.Integer(), nullable=False),
@@ -56,10 +57,8 @@ def upgrade():
             sa.ForeignKeyConstraint(['driver_id'], ['user.id'], ),
             sa.PrimaryKeyConstraint('id')
         )
-    except Exception:
-        pass
 
-    try:
+    if 'chat_message' not in existing_tables:
         op.create_table('chat_message',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('ride_id', sa.Integer(), nullable=False),
@@ -69,15 +68,13 @@ def upgrade():
             sa.ForeignKeyConstraint(['sender_id'], ['user.id'], ),
             sa.PrimaryKeyConstraint('id')
         )
-    except Exception:
-        pass
 
-    # 2. Add the NEW column that started all this trouble
-    try:
-        op.add_column('chat_message', sa.Column('receiver_id', sa.Integer(), nullable=True))
-        op.create_foreign_key('fk_chat_message_receiver', 'chat_message', 'user', ['receiver_id'], ['id'])
-    except Exception:
-        pass
+    # 2. Add the receiver_id column ONLY if it's missing
+    if 'chat_message' in existing_tables:
+        columns = [c['name'] for c in inspector.get_columns('chat_message')]
+        if 'receiver_id' not in columns:
+            op.add_column('chat_message', sa.Column('receiver_id', sa.Integer(), nullable=True))
+            op.create_foreign_key('fk_chat_message_receiver', 'chat_message', 'user', ['receiver_id'], ['id'])
 
 def downgrade():
     pass
