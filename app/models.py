@@ -161,7 +161,8 @@ class ChatMessage(db.Model):
             'id': self.id,
             'ride_id': self.ride_id,
             'sender_id': self.sender_id,
-            'sender_name': self.sender.full_name,
+            'receiver_id': self.receiver_id,
+            'sender_name': self.sender.full_name if self.sender else "System",
             'content': self.content,
             'timestamp': self.timestamp.isoformat()
         }
