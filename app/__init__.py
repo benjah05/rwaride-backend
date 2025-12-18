@@ -21,7 +21,7 @@ def create_app():
     migrate.init_app(flask_app, db)
     jwt.init_app(flask_app)
     CORS(flask_app) # Allow frontend to talk to this backend
-    socketio.init_app(flask_app, cors_allowed_origins="*", async_mode=None)
+    socketio.init_app(flask_app, cors_allowed_origins="*", async_mode="gevent")
 
     # Import and register Blueprints
 

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RwaRide Real-Time Tester</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <h1 class="text-3xl font-bold text-center text-blue-600">RwaRide Real-Time Tester</h1>
+        
+        <div class="bg-white p-6 rounded-lg shadow-md border">
+            <h2 class="text-xl font-semibold mb-4 text-gray-800">1. Connection Settings</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-gray-500 uppercase">Backend URL</label>
+                    <input id="serverUrl" type="text" value="https://rwaride-backend-production.up.railway.app" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="https://...">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-gray-500 uppercase">JWT Access Token</label>
+                    <input id="token" type="text" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="Paste Bearer token here">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-gray-500 uppercase">Ride ID</label>
+                    <input id="rideId" type="number" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500" placeholder="e.g. 4">
+                </div>
+                <div class="flex items-end space-x-2">
+                    <button id="connectBtn" onclick="connect()" class="flex-grow bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700 transition-colors">Connect</button>
+                    <button onclick="disconnect()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 transition-colors">Reset</button>
+                </div>
+            </div>
+            
+            <div class="mt-4 flex items-center space-x-6">
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="forceWebsocket" checked class="form-checkbox h-5 w-5 text-blue-600 rounded">
+                    <span class="ml-2 text-sm text-gray-700">Force WebSocket (Highly Recommended)</span>
+                </label>
+                <div id="status" class="text-sm font-bold text-gray-500">Status: Disconnected</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Tracking Section -->
+            <div class="bg-white p-6 rounded-lg shadow-md border">
+                <h2 class="text-xl font-semibold mb-4 text-green-700 flex items-center">
+                    <span class="mr-2">📍</span> Driver Tracking
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex gap-2">
+                        <div class="w-1/2">
+                            <label class="text-[10px] uppercase text-gray-400">Latitude</label>
+                            <input id="lat" type="text" value="-1.9400" class="w-full p-2 border rounded text-sm">
+                        </div>
+                        <div class="w-1/2">
+                            <label class="text-[10px] uppercase text-gray-400">Longitude</label>
+                            <input id="lng" type="text" value="30.0800" class="w-full p-2 border rounded text-sm">
+                        </div>
+                    </div>
+                    <button onclick="sendLocation()" class="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium transition-colors">Send GPS Update</button>
+                    <div class="p-3 bg-gray-900 text-green-400 rounded h-48 overflow-y-auto text-xs font-mono" id="trackingLog">Tracking Log...</div>
+                </div>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="bg-white p-6 rounded-lg shadow-md border">
+                <h2 class="text-xl font-semibold mb-4 text-purple-700 flex items-center">
+                    <span class="mr-2">💬</span> In-Ride Chat
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex gap-2">
+                        <input id="messageContent" type="text" class="flex-grow p-2 border rounded text-sm" placeholder="Type message...">
+                        <button onclick="sendMessage()" class="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 font-medium transition-colors">Send</button>
+                    </div>
+                    <div class="p-3 bg-gray-50 border rounded h-48 overflow-y-auto text-sm" id="chatLog">
+                        <div class="text-gray-400 italic text-xs">Messages will appear here...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+
+        function log(id, msg, isError = false) {
+            const div = document.getElementById(id);
+            const time = new Date().toLocaleTimeString();
+            const colorClass = isError ? 'text-red-500 font-bold' : '';
+            div.innerHTML += `<div class="${colorClass} py-1 border-b border-gray-800/20 last:border-0"><span class="opacity-50">[${time}]</span> ${msg}</div>`;
+            div.scrollTop = div.scrollHeight;
+        }
+
+        function disconnect() {
+            if (socket) socket.disconnect();
+            document.getElementById('status').innerText = "Status: Disconnected";
+            document.getElementById('status').className = "text-sm font-bold text-gray-500";
+            document.getElementById('connectBtn').disabled = false;
+        }
+
+        function connect() {
+            let url = document.getElementById('serverUrl').value.trim();
+            let token = document.getElementById('token').value.trim();
+            const rideId = document.getElementById('rideId').value;
+            const useWsOnly = document.getElementById('forceWebsocket').checked;
+
+            // Remove "Bearer " prefix if user pasted it
+            if (token.toLowerCase().startsWith('bearer ')) {
+                token = token.substring(7);
+            }
+
+            if (!token || !rideId) {
+                alert("Please enter a valid Token and Ride ID first.");
+                return;
+            }
+
+            disconnect();
+
+            document.getElementById('status').innerText = "Status: Attempting connection...";
+            document.getElementById('connectBtn').disabled = true;
+
+            log('trackingLog', `Initializing connection to ${url}...`);
+
+            // Socket.IO configuration
+            const options = {
+                query: { token: token },
+                transports: useWsOnly ? ['websocket'] : ['websocket', 'polling'],
+                reconnectionAttempts: 3,
+                timeout: 10000,
+                forceNew: true
+            };
+
+            socket = io(url, options);
+
+            socket.on('connect', () => {
+                const transport = socket.io.engine.transport.name;
+                document.getElementById('status').innerText = `Status: Connected (${transport})`;
+                document.getElementById('status').className = "text-sm font-bold text-green-600";
+                document.getElementById('connectBtn').disabled = false;
+                
+                log('trackingLog', `<b>Connected via ${transport}!</b> ID: ${socket.id}`);
+                
+                // Join logical rooms
+                socket.emit('join_tracking', { ride_id: parseInt(rideId) });
+                socket.emit('join_chat', { ride_id: parseInt(rideId) });
+                
+                log('trackingLog', `Joined tracking room: tracking_${rideId}`);
+                log('chatLog', `Joined chat room: chat_${rideId}`);
+            });
+
+            socket.on('disconnect', (reason) => {
+                log('trackingLog', `Disconnected: ${reason}`, true);
+                disconnect();
+            });
+
+            socket.on('connect_error', (err) => {
+                const errorMsg = `Connection Failed: ${err.message}. Check if your token is expired or if the backend supports WebSockets.`;
+                log('trackingLog', errorMsg, true);
+                log('chatLog', `Err: ${err.message}`, true);
+                disconnect();
+            });
+
+            // Listen for broadcasts
+            socket.on('location_received', (data) => {
+                log('trackingLog', `📍 RECV: Lat ${data.lat}, Lng ${data.lng} (Driver: ${data.driver_id})`);
+            });
+
+            socket.on('new_message', (data) => {
+                const isMe = data.sender_id == document.getElementById('rideId').value; // Simple mock check
+                const alignClass = "text-left";
+                const div = document.getElementById('chatLog');
+                div.innerHTML += `
+                    <div class="mb-2 ${alignClass}">
+                        <div class="text-[10px] font-bold text-gray-500 uppercase">${data.sender_name}</div>
+                        <div class="inline-block bg-white border px-3 py-1 rounded-lg shadow-sm">${data.content}</div>
+                    </div>
+                `;
+                div.scrollTop = div.scrollHeight;
+            });
+
+            socket.on('user_joined', (data) => {
+                log('chatLog', `<span class="text-blue-500 italic">Info: ${data.msg}</span>`);
+            });
+        }
+
+        function sendLocation() {
+            if (!socket?.connected) return alert("You must connect first!");
+            const rideId = document.getElementById('rideId').value;
+            const lat = parseFloat(document.getElementById('lat').value);
+            const lng = parseFloat(document.getElementById('lng').value);
+
+            socket.emit('update_location', {
+                ride_id: parseInt(rideId),
+                lat: lat,
+                lng: lng
+            });
+            log('trackingLog', `➤ SENT: Lat ${lat}, Lng ${lng}`);
+        }
+
+        function sendMessage() {
+            if (!socket?.connected) return alert("You must connect first!");
+            const rideId = document.getElementById('rideId').value;
+            const content = document.getElementById('messageContent').value.trim();
+
+            if (!content) return;
+
+            socket.emit('send_message', {
+                ride_id: parseInt(rideId),
+                content: content
+            });
+            document.getElementById('messageContent').value = '';
+            log('chatLog', `<span class="text-purple-600 font-bold">You:</span> ${content}`);
+        }
+    </script>
+</body>
+</html>
