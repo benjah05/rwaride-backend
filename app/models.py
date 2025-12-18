@@ -152,8 +152,9 @@ class ChatMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    
-    sender = db.relationship('User', backref=db.backref('sent_messages', lazy='dynamic'))
+
+    sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('sent_messages', lazy='dynamic'))
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref=db.backref('received_messages', lazy='dynamic'))
 
     def to_dict(self):
         return {
