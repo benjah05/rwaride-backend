@@ -151,6 +151,7 @@ class ChatMessage(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     
     sender = db.relationship('User', backref=db.backref('sent_messages', lazy='dynamic'))
 
